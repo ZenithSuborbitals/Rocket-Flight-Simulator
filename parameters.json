@@ -1,0 +1,12 @@
+{
+  "launch_height": 0,
+  "launch_mass": 0.350,
+  "propellent_mass": 0.045,
+  "burn_length": 1.25,
+
+  "engine_impulse": 92.9,
+  "rocket_drag_coef": 0.3,
+  "parachute_drag_coef": 0.7,
+
+  "cross_sectional_area": 0.00264207942
+}
