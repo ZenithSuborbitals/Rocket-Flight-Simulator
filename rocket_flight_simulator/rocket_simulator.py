@@ -1,6 +1,7 @@
 import json
+import numpy as np
 
-from rocket_flight_simulator.atmosphere import Atmosphere
+from atmosphere import Atmosphere
 
 class RocketSimulator(object):
     R_EARTH = 6371000 # meters
@@ -27,6 +28,14 @@ class RocketSimulator(object):
 
         print(self.parameters)
 
+        self.data = {}
+        self.data['time'] = []
+        self.data['height'] = []
+        self.data['velocity'] = []
+        self.data['acceleration'] = []
+
+
+
     def run_simulation(self, ticksize):
         self.ticksize = ticksize
 
@@ -40,12 +49,17 @@ class RocketSimulator(object):
         self.velocity += self.acceleration * self.ticksize
 
         force = self.thrust_force() + self.drag_force() + self.gravity_force()
-        print(force)
         self.acceleration = force / self.mass
+
+        self.data['time'].append(self.time)
+        self.data['height'].append(self.height)
+        self.data['velocity'].append(self.velocity)
+        self.data['acceleration'].append(self.acceleration)
 
         self.update_mass()
         self.update_max_values()
         self.time += self.ticksize
+
 
 
 
@@ -64,7 +78,7 @@ class RocketSimulator(object):
         else:
              direction = 1
 
-        print(self.height, (direction * drag_coef * pressure * self.velocity**2 * self.parameters['cross_sectional_area'] ) / 2)
+        print(self.height, (direction * drag_coef * pressure * self.velocity**2 * self.parameters['cross_sectional_area'] ) / 2, self.acceleration)
         return (direction * drag_coef * pressure * self.velocity**2 * self.parameters['cross_sectional_area'] ) / 2
 
 
