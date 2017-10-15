@@ -1,21 +1,41 @@
+from pyqtgraph.Qt import QtCore
+from PyQt5.Qt import QMutex
 import json
 import numpy as np
+from time import sleep
 
 from atmosphere import Atmosphere
+from thruster import Thruster
 
-class RocketSimulator(object):
+class RocketSimulator(QtCore.QObject):
     R_EARTH = 6371000 # meters
     G_0 = -9.80665 # m/s^2 (at sea level)
 
+    new_data  = QtCore.pyqtSignal(object)
 
-    def __init__(self, file='parameters.json'):
-        with open(file, 'r') as inputf:
+
+    def __init__(self, ticksize, param_file='parameters.json'):
+        QtCore.QObject.__init__(self)
+        self.load_data(param_file)
+
+
+    def load_data(self, param_file):
+        with open(param_file, 'r') as inputf:
             self.parameters = json.load(inputf)
+
+        # Set imported parameters as properties
+        for parameter in self.parameters:
+            setattr(self, parameter, self.parameters[parameter])
+        # use for threadsafe commnications with the GUI thread
+        self.mutex = QMutex()
 
         self.atmosphere = Atmosphere()
 
+        # TODO Error analysis vs. ticksize
+        self.ticksize = 0.001
+
         self.time = 0
-        self.height = self.parameters['launch_height']
+        self.height = self.launch_height
         self.velocity = 0
         self.acceleration = 0
 
@@ -23,11 +43,9 @@ class RocketSimulator(object):
         self.max_velocity = 0
         self.max_acceleration = 0
 
-        self.mass = self.parameters['launch_mass']
-        self.thrust = self.parameters['engine_impulse'] / self.parameters['burn_length']
+        self.mass = self.launch_mass
 
-        print(self.parameters)
-
+        self.thruster = Thruster()
         self.data = {}
         self.data['time'] = []
         self.data['height'] = []
@@ -35,11 +53,9 @@ class RocketSimulator(object):
         self.data['acceleration'] = []
 
 
+    def run_simulation(self):
 
-    def run_simulation(self, ticksize):
-        self.ticksize = ticksize
-
-        while self.height >= self.parameters['launch_height']:
+        while self.height >= self.launch_height:
             self.run_tick()
         print(self.max_height, self.max_velocity, self.max_acceleration)
 
@@ -51,6 +67,12 @@ class RocketSimulator(object):
         force = self.thrust_force() + self.drag_force() + self.gravity_force()
         self.acceleration = force / self.mass
 
+        locked = False
+        if self.mutex.tryLock(10):
+
+            self.new_data.emit([self.time, self.height, self.velocity, self.acceleration])
+            self.mutex.unlock()
+
         self.data['time'].append(self.time)
         self.data['height'].append(self.height)
         self.data['velocity'].append(self.velocity)
@@ -60,17 +82,16 @@ class RocketSimulator(object):
         self.update_max_values()
         self.time += self.ticksize
 
-
-
-
     def drag_force(self):
         pressure = self.atmosphere.get_density_by_height(self.height)
         # Rocket is heading up
         if self.velocity >= 0:
-            drag_coef = self.parameters['rocket_drag_coef']
+            drag_coef = self.rocket_drag_coef
+            area = self.cross_sectional_area
         # Rocket is falling with parachute deployed
         else:
-            drag_coef = self.parameters['parachute_drag_coef']
+            drag_coef = self.parachute_drag_coef
+            area = self.parachute_area
 
         # Drag force is the opposite direction of velocity
         if self.velocity > 0:
@@ -78,8 +99,8 @@ class RocketSimulator(object):
         else:
              direction = 1
 
-        print(self.height, (direction * drag_coef * pressure * self.velocity**2 * self.parameters['cross_sectional_area'] ) / 2, self.acceleration)
-        return (direction * drag_coef * pressure * self.velocity**2 * self.parameters['cross_sectional_area'] ) / 2
+        # TODO use increased parachute area
+        return (direction * drag_coef * pressure * self.velocity**2 * area ) / 2
 
 
     def gravity_force(self):
@@ -90,16 +111,16 @@ class RocketSimulator(object):
 
 
     def thrust_force(self):
-        if self.time < self.parameters['burn_length']:
-            return self.thrust
+        if self.time < self.burn_length:
+            return self.thruster.get_thrust_at_time(self.time)
         else:
             return 0
 
     def update_mass(self):
-        if self.time > self.parameters['burn_length']:
+        if self.time > self.burn_length:
             return
         else:
-            self.mass -= (self.parameters['propellent_mass'] / self.parameters['burn_length']) * self.ticksize
+            self.mass -= (self.propellent_mass / self.burn_length) * self.ticksize
 
     def update_max_values(self):
         if self.height > self.max_height:

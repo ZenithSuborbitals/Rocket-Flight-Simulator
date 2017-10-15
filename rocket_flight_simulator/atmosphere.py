@@ -2,12 +2,15 @@ import csv
 
 # Interface to the data contained in atmosphere.csv
 class Atmosphere(object):
+    # Dependant on data source
     HEIGHT_MIN = -304.8
     HEIGHT_MAX = 85344
     # Public
     def __init__(self,file='atmosphere.csv'):
         self._data = []
+        self.load_data(file)
 
+    def load_data(self, file):
         with open(file, 'r') as data_file:
             csv_reader = csv.DictReader(data_file, delimiter = ',')
             for line in csv_reader:

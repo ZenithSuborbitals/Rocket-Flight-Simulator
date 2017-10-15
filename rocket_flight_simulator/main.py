@@ -2,6 +2,7 @@ from pyqtgraph.Qt import QtGui, QtCore
 import numpy as np
 import pyqtgraph as pg
 import sys
+from copy import copy
 
 from rocket_simulator import RocketSimulator
 
@@ -17,7 +18,7 @@ def init_charts():
     velocity_plot.enableAutoRange('xy', True)
 
     acceleration_plot = pg.PlotWidget(title="<h1> Acceleration (m/s^2) </h1>")
-    acceleration_curve = acceleration_plot.plot(pen=(0,0,255))
+    acceleration_curve = acceleration_plot.plot(pen=(0,150,255))
     acceleration_plot.enableAutoRange('xy', True)
 
     # Add plots to layout
@@ -48,16 +49,45 @@ def init_param_list():
     layout.addLayout(params, 0, 0, 3, 1)   # button goes in upper-left
 
 
-def update_charts():
+def update_values(vals):
     global simulator, height_curve, velocity_curve, acceleration_curve
+    global sim_times, sim_heights, sim_velocities, sim_accelerations
 
-    height_curve.setData(simulator.data['time'], simulator.data['height'])
-    velocity_curve.setData(simulator.data['time'], simulator.data['velocity'])
-    acceleration_curve.setData(simulator.data['time'], simulator.data['acceleration'])
+    if simulator.mutex.tryLock(10):
+        vals = copy(vals)
+        simulator.mutex.unlock()
+
+        sim_times.append(vals[0])
+        sim_heights.append(vals[1])
+        sim_velocities.append(vals[2])
+        sim_accelerations.append(vals[3])
+
+
+
+def run_simulation():
+    global calc_thread, simulator, sim_data
+    global sim_times, sim_heights, sim_velocities, sim_accelerations
+
+    sim_data = []
+
+    if calc_thread.isRunning:
+        calc_thread.terminate()
+
+    calc_thread.started.connect(simulator.run_simulation)
+    calc_thread.start()
+
+def update():
+    global height_curve, velocity_curve, acceleration_curve
+    global sim_times, sim_heights, sim_velocities, sim_accelerations
+
+    height_curve.setData(sim_times, sim_heights)
+    velocity_curve.setData(sim_times, sim_velocities)
+    acceleration_curve.setData(sim_times, sim_accelerations)
+
 
 # Main
 app = QtGui.QApplication([])
-simulator = RocketSimulator()
+simulator = RocketSimulator(ticksize=0.0001)
 
 win = QtGui.QWidget()
 
@@ -73,11 +103,22 @@ init_param_list()
 
 win.show()
 
-# Run update every 10ms
+
+
+
+sim_times = []
+sim_heights = []
+sim_velocities = []
+sim_accelerations = []
+calc_thread = QtCore.QThread()
+simulator.moveToThread(calc_thread)
+simulator.new_data.connect(update_values)
+
 timer = QtCore.QTimer()
-timer.timeout.connect(update_charts)
-timer.start(10)
+timer.timeout.connect(update)
+timer.start(10) # Decrease this if more performance issues
 
 
-simulator.run_simulation(0.1)
+run_simulation()
+
 sys.exit(app.exec_())
