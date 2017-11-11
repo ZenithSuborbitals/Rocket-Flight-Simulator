@@ -32,7 +32,7 @@ class RocketSimulator(QtCore.QObject):
         self.atmosphere = Atmosphere()
 
         # TODO Error analysis vs. ticksize
-        self.ticksize = 0.001
+        self.ticksize = 0.0001
 
         self.time = 0
         self.height = self.launch_height
@@ -83,7 +83,7 @@ class RocketSimulator(QtCore.QObject):
         self.time += self.ticksize
 
     def drag_force(self):
-        pressure = self.atmosphere.get_density_by_height(self.height)
+        density = self.atmosphere.get_density_by_height(self.height)
         # Rocket is heading up
         if self.velocity >= 0:
             drag_coef = self.rocket_drag_coef
@@ -99,8 +99,7 @@ class RocketSimulator(QtCore.QObject):
         else:
              direction = 1
 
-        # TODO use increased parachute area
-        return (direction * drag_coef * pressure * self.velocity**2 * area ) / 2
+        return (direction * drag_coef * density * self.velocity**2 * area ) / 2
 
 
     def gravity_force(self):
@@ -112,7 +111,8 @@ class RocketSimulator(QtCore.QObject):
 
     def thrust_force(self):
         if self.time < self.burn_length:
-            return self.thruster.get_thrust_at_time(self.time)
+            vacuum_thrust = (101325 - self.atmosphere.get_pressure_by_height(self.height)) * 0.005 * 0.005 * 3.1415926535
+            return self.thruster.get_thrust_at_time(self.time) + vacuum_thrust
         else:
             return 0
 

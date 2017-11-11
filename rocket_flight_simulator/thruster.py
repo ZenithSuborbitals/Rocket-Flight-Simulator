@@ -15,6 +15,7 @@ class Thruster(object):
         self.measurement_interval = float(self._data[1]['time']) - float(self._data[0]['time'])
         print(self.measurement_interval)
 
+
     # Assume regulatly spaced intervals in the data input file
     def get_thrust_at_time(self, time):
         if time < 0 or time > (self.measurement_interval * (len(self._data) - 1)):
