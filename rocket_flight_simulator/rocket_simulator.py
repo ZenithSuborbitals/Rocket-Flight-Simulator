@@ -30,6 +30,7 @@ class RocketSimulator(QtCore.QObject):
         self.mutex = QMutex()
 
         self.atmosphere = Atmosphere()
+        self.initial_pressure = self.atmosphere.get_pressure_by_height(self.launch_height)
 
         # TODO Error analysis vs. ticksize
         self.ticksize = 0.0001
@@ -111,10 +112,13 @@ class RocketSimulator(QtCore.QObject):
 
     def thrust_force(self):
         if self.time < self.burn_length:
-            vacuum_thrust = (101325 - self.atmosphere.get_pressure_by_height(self.height)) * 0.005 * 0.005 * 3.1415926535
-            return self.thruster.get_thrust_at_time(self.time) + vacuum_thrust
+            return self.thruster.get_thrust_at_time(self.time) + self.get_vacuum_thrust()
         else:
             return 0
+    # Max no VT: 905.0415775968264
+    # Max w/ VT:
+    def get_vacuum_thrust(self):
+        return (self.initial_pressure - self.atmosphere.get_pressure_by_height(self.height)) * self.exit_area
 
     def update_mass(self):
         if self.time > self.burn_length:
